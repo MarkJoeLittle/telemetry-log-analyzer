@@ -1,0 +1,71 @@
+"""Integration tests for reading and validating telemetry files."""
+
+import io
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+
+from analyzer import analyze_log
+
+
+class TestLogLoading(unittest.TestCase):
+    def analyze_text(self, contents: str) -> str:
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "telemetry.csv"
+            log_path.write_text(contents, encoding="utf-8")
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                analyze_log(log_path)
+
+            return output.getvalue()
+
+    def test_valid_log_summary(self):
+        output = self.analyze_text(
+            "timestamp,temperature_c,voltage_v,comms_ok\n"
+            "2026-10-22T10:00:00,25.0,12.0,true\n"
+            "2026-10-22T10:00:01,90.0,12.0,true\n"
+        )
+        self.assertIn("Overtemperature", output)
+        self.assertIn("Total readings: 2", output)
+        self.assertIn("Readings with faults: 1", output)
+        self.assertIn("Readings without faults: 1", output)
+
+    def test_missing_column(self):
+        with self.assertRaisesRegex(ValueError, "Missing required columns"):
+            self.analyze_text(
+                "timestamp,temperature_c,voltage_v\n"
+                "2026-10-22T10:00:00,25.0,12.0\n"
+            )
+
+    def test_incomplete_row(self):
+        with self.assertRaisesRegex(
+            ValueError, "Line 2: missing value for comms_ok"
+        ):
+            self.analyze_text(
+                "timestamp,temperature_c,voltage_v,comms_ok\n"
+                "2026-10-22T10:00:00,25.0,12.0\n"
+            )
+
+    def test_invalid_number_includes_line(self):
+        with self.assertRaisesRegex(
+            ValueError, "Line 2: temperature_c must be numeric"
+        ):
+            self.analyze_text(
+                "timestamp,temperature_c,voltage_v,comms_ok\n"
+                "2026-10-22T10:00:00,unknown,12.0,true\n"
+            )
+
+    def test_invalid_comms_includes_line(self):
+        with self.assertRaisesRegex(
+            ValueError, "Line 2: Invalid comms_ok value"
+        ):
+            self.analyze_text(
+                "timestamp,temperature_c,voltage_v,comms_ok\n"
+                "2026-10-22T10:00:00,25.0,12.0,yes\n"
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import math
 from pathlib import Path
 
 
@@ -40,18 +41,75 @@ def detect_faults(
 
     return faults
 
+def parse_number(value: str, field_name: str) -> float:
+    """Convert a sensor value into a finite number."""
+    try:
+        number = float(value)
+    except ValueError:
+        raise ValueError(
+            f"{field_name} must be numeric; got {value!r}."
+        ) from None
+
+    if not math.isfinite(number):
+        raise ValueError(
+            f"{field_name} must be finite; got {value!r}."
+        )
+
+    return number
+
+def validate_headers(headers: list[str] | None) -> None:
+    """Check that the log contains all required columns."""
+    required = {"timestamp", "temperature_c", "voltage_v", "comms_ok"}
+
+    if not headers:
+        raise ValueError("The log is empty or has no header.")
+
+    if len(headers) != len(set(headers)):
+        raise ValueError("The log contains duplicate column names.")
+
+    missing = required - set(headers)
+
+    if missing:
+        raise ValueError(
+            f"Missing required columns: {', '.join(sorted(missing))}."
+        )
+
+def validate_row(row: dict, line_number: int) -> None:
+    """Reject extra values and missing or blank required values."""
+    if None in row:
+        raise ValueError(f"Line {line_number}: too many values.")
+
+    for field in ("timestamp", "temperature_c", "voltage_v", "comms_ok"):
+        value = row.get(field)
+
+        if value is None or not value.strip():
+            raise ValueError(
+                f"Line {line_number}: missing value for {field}."
+            )
+
 def analyze_log(file_path: Path) -> None:
     total_readings = 0
     faulty_readings = 0
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
+        validate_headers(reader.fieldnames)
 
         for row in reader:
+            validate_row(row, reader.line_num)
+
+            try:
+                temperature = parse_number(
+                    row["temperature_c"], "temperature_c"
+                )
+                voltage = parse_number(row["voltage_v"], "voltage_v")
+                comms_ok = parse_comms(row["comms_ok"])
+            except ValueError as error:
+                raise ValueError(
+                    f"Line {reader.line_num}: {error}"
+                ) from None
+
             total_readings += 1
-            temperature = float(row["temperature_c"])
-            voltage = float(row["voltage_v"])
-            comms_ok = parse_comms(row["comms_ok"])
 
             faults = detect_faults(temperature, voltage, comms_ok)
 

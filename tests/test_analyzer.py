@@ -2,8 +2,9 @@
 
 import unittest
 
-from analyzer import detect_faults, parse_comms
+from analyzer import detect_faults, parse_comms, parse_number, validate_headers
 
+from analyzer import validate_row
 
 
 class TestDetectFaults(unittest.TestCase):
@@ -69,6 +70,83 @@ class TestParseComms(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     parse_comms(value)
+
+class TestParseNumber(unittest.TestCase):
+    def test_valid_number(self):
+        self.assertEqual(parse_number("12.5", "voltage_v"), 12.5)
+
+    def test_spaces_and_negative_number(self):
+        self.assertEqual(parse_number(" -5.0 ", "temperature_c"), -5.0)
+
+    def test_invalid_text(self):
+        for value in ("", " ", "unknown", "12 volts"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    parse_number(value, "voltage_v")
+
+    def test_nonfinite_numbers(self):
+        for value in ("nan", "inf", "-inf", "1e999"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    parse_number(value, "temperature_c")
+
+class TestValidateHeaders(unittest.TestCase):
+    def test_required_columns(self):
+        validate_headers(
+            ["timestamp", "temperature_c", "voltage_v", "comms_ok"]
+        )
+
+    def test_extra_column_allowed(self):
+        validate_headers(
+            ["timestamp", "temperature_c", "voltage_v", "comms_ok", "device_id"]
+        )
+
+    def test_missing_column(self):
+        with self.assertRaisesRegex(ValueError, "Missing required columns: comms_ok"):
+            validate_headers(["timestamp", "temperature_c", "voltage_v"])
+
+    def test_empty_or_duplicate_headers(self):
+        for headers in (
+            None,
+            [],
+            ["timestamp", "temperature_c", "voltage_v", "comms_ok", "comms_ok"],
+        ):
+            with self.subTest(headers=headers):
+                with self.assertRaises(ValueError):
+                    validate_headers(headers)
+
+class TestValidateRow(unittest.TestCase):
+    def setUp(self):
+        self.row = {
+            "timestamp": "2026-10-22T10:00:00",
+            "temperature_c": "25.0",
+            "voltage_v": "12.0",
+            "comms_ok": "true",
+        }
+
+    def test_valid_row(self):
+        validate_row(self.row, 2)
+
+    def test_missing_or_blank_values(self):
+        for field in self.row:
+            for value in (None, "", " "):
+                with self.subTest(field=field, value=value):
+                    row = self.row.copy()
+                    row[field] = value
+                    with self.assertRaisesRegex(
+                        ValueError, f"Line 3: missing value for {field}"
+                    ):
+                        validate_row(row, 3)
+
+    def test_absent_field(self):
+        del self.row["voltage_v"]
+        with self.assertRaisesRegex(ValueError, "missing value for voltage_v"):
+            validate_row(self.row, 4)
+
+    def test_extra_values(self):
+        self.row[None] = ["unexpected"]
+        with self.assertRaisesRegex(ValueError, "Line 5: too many values"):
+            validate_row(self.row, 5)
 
 if __name__ == "__main__":
     unittest.main()
