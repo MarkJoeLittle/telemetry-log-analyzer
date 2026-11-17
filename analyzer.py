@@ -4,6 +4,7 @@ import argparse
 import csv
 import math
 from pathlib import Path
+from datetime import datetime
 
 
 def parse_comms(value: str) -> bool:
@@ -87,9 +88,46 @@ def validate_row(row: dict, line_number: int) -> None:
                 f"Line {line_number}: missing value for {field}."
             )
 
+def parse_timestamp(value: str) -> datetime:
+    """Parse a date and time in ISO 8601 format."""
+    normalized = value.strip()
+
+    if "T" not in normalized:
+        raise ValueError(
+            f"Timestamp must include a date and time separated by T; got {value!r}."
+        )
+
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        raise ValueError(
+            f"Invalid timestamp: {value!r}."
+        ) from None
+
+
+def has_timestamp_gap(previous: datetime, current: datetime) -> bool:
+    """Detect gaps exceeding one second; reject inconsistent timestamps."""
+    previous_has_zone = previous.utcoffset() is not None
+    current_has_zone = current.utcoffset() is not None
+
+    if previous_has_zone != current_has_zone:
+        raise ValueError(
+            "Timestamps must consistently include or omit timezone information."
+        )
+
+    elapsed = (current - previous).total_seconds()
+
+    if elapsed <= 0:
+        raise ValueError("Timestamps must be strictly increasing.")
+
+    return elapsed > 1.0
+
+
 def analyze_log(file_path: Path) -> None:
     total_readings = 0
     faulty_readings = 0
+    previous_timestamp = None
+    timing_gaps = 0
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
@@ -99,16 +137,29 @@ def analyze_log(file_path: Path) -> None:
             validate_row(row, reader.line_num)
 
             try:
+                timestamp = parse_timestamp(row["timestamp"])
                 temperature = parse_number(
                     row["temperature_c"], "temperature_c"
                 )
                 voltage = parse_number(row["voltage_v"], "voltage_v")
                 comms_ok = parse_comms(row["comms_ok"])
+                gap_detected = (
+                    previous_timestamp is not None
+                    and has_timestamp_gap(previous_timestamp, timestamp)
+                )
             except ValueError as error:
                 raise ValueError(
                     f"Line {reader.line_num}: {error}"
                 ) from None
 
+            if gap_detected:
+                timing_gaps += 1
+                print(
+                    f"Timing gap: {previous_timestamp.isoformat()}"
+                    f" -> {timestamp.isoformat()}"
+                )
+
+            previous_timestamp = timestamp
             total_readings += 1
 
             faults = detect_faults(temperature, voltage, comms_ok)
@@ -121,6 +172,7 @@ def analyze_log(file_path: Path) -> None:
     print(f"Total readings: {total_readings}")
     print(f"Readings with faults: {faulty_readings}")
     print(f"Readings without faults: {total_readings - faulty_readings}")
+    print(f"Timing gaps: {timing_gaps}")
 
 
 if __name__ == "__main__":

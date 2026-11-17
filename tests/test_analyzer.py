@@ -5,6 +5,10 @@ import unittest
 from analyzer import detect_faults, parse_comms, parse_number, validate_headers
 
 from analyzer import validate_row
+from datetime import datetime, timezone
+
+from analyzer import has_timestamp_gap
+from analyzer import parse_timestamp
 
 
 class TestDetectFaults(unittest.TestCase):
@@ -147,6 +151,97 @@ class TestValidateRow(unittest.TestCase):
         self.row[None] = ["unexpected"]
         with self.assertRaisesRegex(ValueError, "Line 5: too many values"):
             validate_row(self.row, 5)
+
+class TestHasTimestampGap(unittest.TestCase):
+    def test_gap_exceeds_one_second(self):
+        previous = datetime(2026, 10, 22, 10, 0, 0)
+        current = datetime(2026, 10, 22, 10, 0, 2)
+        self.assertTrue(has_timestamp_gap(previous, current))
+
+    def test_gap_within_one_second(self):
+        previous = datetime(2026, 10, 22, 10, 0, 0)
+        current = datetime(2026, 10, 22, 10, 0, 0, 500000)
+        self.assertFalse(has_timestamp_gap(previous, current))
+
+    def test_rejects_non_increasing_timestamps(self):
+        previous = datetime(2026, 10, 22, 10, 0, 2)
+        current = datetime(2026, 10, 22, 10, 0, 1)
+        with self.assertRaisesRegex(ValueError, "strictly increasing"):
+            has_timestamp_gap(previous, current)
+
+    def test_rejects_mixed_timezone_information(self):
+        previous = datetime(2026, 10, 22, 10, 0, 0, tzinfo=timezone.utc)
+        current = datetime(2026, 10, 22, 10, 0, 1)
+        with self.assertRaisesRegex(ValueError, "consistently include or omit"):
+            has_timestamp_gap(previous, current)
+
+
+class TestParseTimestamp(unittest.TestCase):
+    def test_valid_timestamp(self):
+        self.assertEqual(
+            parse_timestamp("2026-10-22T10:00:00"),
+            datetime(2026, 10, 22, 10, 0, 0),
+        )
+
+    def test_surrounding_spaces(self):
+        self.assertEqual(
+            parse_timestamp(" 2026-10-22T10:00:00 "),
+            datetime(2026, 10, 22, 10, 0, 0),
+        )
+
+    def test_utc_timestamp(self):
+        self.assertEqual(
+            parse_timestamp("2026-10-22T10:00:00Z"),
+            datetime(2026, 10, 22, 10, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_invalid_timestamp(self):
+        for value in (
+            "",
+            "not-a-date",
+            "2026-10-22",
+            "2026-02-30T10:00:00",
+            "2026-10-22T25:00:00",
+        ):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    parse_timestamp(value)
+
+
+class TestTimestampGaps(unittest.TestCase):
+    def setUp(self):
+        self.previous = datetime(2026, 10, 22, 10, 0, 0)
+
+    def test_exact_one_second_has_no_gap(self):
+        current = datetime(2026, 10, 22, 10, 0, 1)
+        self.assertFalse(has_timestamp_gap(self.previous, current))
+
+    def test_short_interval_has_no_gap(self):
+        current = datetime(2026, 10, 22, 10, 0, 0, 500000)
+        self.assertFalse(has_timestamp_gap(self.previous, current))
+
+    def test_long_interval_has_gap(self):
+        current = datetime(2026, 10, 22, 10, 0, 2)
+        self.assertTrue(has_timestamp_gap(self.previous, current))
+
+    def test_duplicate_or_reversed_time(self):
+        for current in (
+            self.previous,
+            datetime(2026, 10, 22, 9, 59, 59),
+        ):
+            with self.subTest(current=current):
+                with self.assertRaisesRegex(
+                    ValueError, "strictly increasing"
+                ):
+                    has_timestamp_gap(self.previous, current)
+
+    def test_mixed_timezone_information(self):
+        current = datetime(
+            2026, 10, 22, 10, 0, 1, tzinfo=timezone.utc
+        )
+        with self.assertRaisesRegex(ValueError, "timezone"):
+            has_timestamp_gap(self.previous, current)
+
 
 if __name__ == "__main__":
     unittest.main()
