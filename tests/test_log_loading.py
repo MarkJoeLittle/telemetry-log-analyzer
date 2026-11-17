@@ -32,6 +32,26 @@ class TestLogLoading(unittest.TestCase):
         self.assertIn("Readings with faults: 1", output)
         self.assertIn("Readings without faults: 1", output)
 
+    def test_timing_gap_warning_and_summary(self):
+        output = self.analyze_text(
+            "timestamp,temperature_c,voltage_v,comms_ok\n"
+            "2026-10-22T10:00:00,25.0,12.0,true\n"
+            "2026-10-22T10:00:01,26.0,12.0,true\n"
+            "2026-10-22T10:00:04,27.0,12.0,true\n"
+            "2026-10-22T10:00:05,28.0,12.0,true\n"
+        )
+
+        self.assertIn(
+            "Timing gap: 2026-10-22T10:00:01"
+            " -> 2026-10-22T10:00:04",
+            output,
+        )
+        self.assertEqual(output.count("Timing gap:"), 1)
+        self.assertIn("Timing gaps: 1", output)
+        self.assertIn("Total readings: 4", output)
+        self.assertIn("Readings with faults: 0", output)
+        self.assertIn("Readings without faults: 4", output)
+
     def test_missing_column(self):
         with self.assertRaisesRegex(ValueError, "Missing required columns"):
             self.analyze_text(
