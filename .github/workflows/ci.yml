@@ -12,6 +12,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      matrix:
+        plotting: [false, true]
 
     steps:
       - name: Check out repository
@@ -23,6 +26,10 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+
+      - name: Install optional plotting dependencies
+        if: matrix.plotting
+        run: python -m pip install -r requirements-plot.txt
 
       - name: Run tests
         run: python -m unittest discover -s tests -v
