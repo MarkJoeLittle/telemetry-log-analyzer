@@ -12,6 +12,40 @@ Built as an embedded-systems and software-testing portfolio project.
 Sample telemetry showing an overtemperature reading at two seconds,
 undervoltage at three seconds, and overvoltage at five seconds.
 
+## Demonstration Scenario
+
+The synthetic demonstration contains 180 readings spanning 183 seconds.
+It includes normal operation, overtemperature, undervoltage, overvoltage,
+communications failure, and recovery after each fault.
+
+One five-second interval represents four missing expected samples.
+
+![Demonstration temperature and voltage chart](docs/images/demo-telemetry.png)
+
+Communications failures are included in the terminal and JSON reports;
+the chart displays temperature and voltage.
+
+Generate the demonstration log at a new destination:
+
+```bash
+python3 scripts/generate_demo.py data/demo_telemetry.csv
+```
+
+If the demonstration file already exists, analyze it directly:
+
+```bash
+python3 analyzer.py data/demo_telemetry.csv
+```
+
+Expected summary:
+
+```text
+Total readings: 180
+Readings with faults: 35
+Readings without faults: 145
+Timing gaps: 1
+```
+
 ## Features
 
 - Detects temperatures above 85 °C
@@ -76,6 +110,17 @@ python3 analyzer.py data/sample_telemetry.csv --expected-interval 2
 
 The interval must be a positive, finite number. An interval exactly at
 the configured threshold does not count as a gap.
+
+### Generate Demo Telemetry
+
+Create a reproducible 180-reading demo log:
+
+```bash
+python3 scripts/generate_demo.py
+```
+
+By default, the script creates `data/demo_telemetry.csv` and refuses to
+overwrite an existing file. Pass a destination path to choose another file.
 
 ### Export a JSON Report
 
