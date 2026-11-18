@@ -91,6 +91,9 @@ python -m unittest discover -s tests -v
 Tests cover fault thresholds, input validation, timestamp ordering,
 timing gaps, and file-reading integration.
 
+GitHub Actions runs the automated tests and sample analysis on every push
+and pull request using Python 3.14.
+
 ## Limitations
 
 - Analysis stops at the first invalid record.
@@ -101,4 +104,3 @@ timing gaps, and file-reading integration.
 
 - Exportable analysis reports
 - Sensor-data charts
-- Automated testing through GitHub Actions
