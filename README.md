@@ -16,7 +16,8 @@ Built as an embedded-systems and software-testing portfolio project.
   communications values, and timestamps
 - Includes line numbers in row-validation errors
 - Exports structured JSON reports
-- Uses only the Python standard library
+- Can create temperature and voltage charts with the optional Matplotlib dependency
+- Core analysis uses only the Python standard library
 
 Timing gaps are reported separately from sensor faults.
 
@@ -25,7 +26,9 @@ Timing gaps are reported separately from sensor faults.
 Python 3.14. Development and local verification used Python 3.14.4
 on Ubuntu through Windows Subsystem for Linux (WSL).
 
-No third-party packages are required.
+Core analysis and JSON export require no third-party packages. Chart
+generation requires the optional Matplotlib dependency; see [Generate a
+Chart](#generate-a-chart).
 
 ## Input Format
 
@@ -90,6 +93,29 @@ no analysis output and no new report.
 
 Generated files in `reports/` are excluded from Git.
 
+### Generate a Chart
+
+Install the optional plotting dependencies:
+
+```bash
+python3 -m pip install -r requirements-plot.txt
+```
+
+Create the output folder:
+
+```bash
+mkdir -p reports
+```
+
+Create a chart:
+
+```bash
+python3 analyzer.py --plot reports/telemetry.png
+```
+
+The PNG contains temperature and voltage readings with fault thresholds
+marked. Existing destination files are not overwritten.
+
 Display help:
 
 ```bash
@@ -114,15 +140,12 @@ python -m unittest discover -s tests -v
 
 Tests cover fault thresholds, input validation, timestamp ordering,
 timing gaps, file-reading integration, and command-line behavior.
+Chart rendering tests run when Matplotlib is installed.
 
 GitHub Actions runs the automated tests and sample analysis on every push
-and pull request using Python 3.14.
+and pull request using Python 3.14, both with and without Matplotlib.
 
 ## Limitations
 
 - Analysis stops at the first invalid record.
 - This is an offline analysis tool, not a real-time monitoring system.
-
-## Planned Improvements
-
-- Sensor-data charts

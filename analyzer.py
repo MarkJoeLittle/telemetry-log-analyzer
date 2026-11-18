@@ -152,6 +152,7 @@ def collect_report(
     previous_timestamp: datetime | None = None
     timing_gaps = 0
     events: list[dict] = []
+    readings: list[dict] = []
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
@@ -190,6 +191,12 @@ def collect_report(
                     ).total_seconds(),
                 })
 
+            readings.append({
+                "timestamp": timestamp.isoformat(),
+                "temperature_c": temperature,
+                "voltage_v": voltage,
+                "comms_ok": comms_ok,
+            })
             previous_timestamp = timestamp
             total_readings += 1
 
@@ -214,6 +221,7 @@ def collect_report(
             "timing_gaps": timing_gaps,
         },
         "events": events,
+        "readings": readings,
     }
 
 
@@ -268,6 +276,12 @@ if __name__ == "__main__":
         metavar="FILE",
         help="Save a JSON report to a new file.",
     )
+    parser.add_argument(
+        "--plot",
+        type=Path,
+        metavar="PNG_FILE",
+        help="Save temperature and voltage charts to a new PNG file.",
+    )
     args = parser.parse_args()
 
     try:
@@ -286,6 +300,18 @@ if __name__ == "__main__":
                 status=1,
                 message=f"Cannot write report: {error}\n",
             )
+    if args.plot is not None:
+        from plotting import save_chart
+
+        try:
+            save_chart(report, args.plot)
+        except (OSError, ValueError) as error:
+            parser.exit(
+                status=1,
+                message=f"Cannot save chart: {error}\n",
+            )
     print_report(report)
     if args.output is not None:
         print(f"\nJSON report saved to: {args.output}")
+    if args.plot is not None:
+        print(f"\nChart saved to: {args.plot}")

@@ -1,5 +1,6 @@
 """Tests for the command-line interface."""
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -27,6 +28,8 @@ class TestCommandLine(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--expected-interval", result.stdout)
         self.assertIn("--output", result.stdout)
+        self.assertIn("--plot", result.stdout)
+        self.assertIn("--plot", result.stdout)
 
     def test_default_interval(self):
         result = self.run_cli()
@@ -64,6 +67,7 @@ class TestCommandLine(unittest.TestCase):
             "timing_gaps": 0,
         })
         self.assertEqual(len(report["events"]), 4)
+        self.assertEqual(len(report["readings"]), 6)
         self.assertTrue(
             all(event["type"] == "sensor_fault" for event in report["events"])
         )
@@ -106,6 +110,22 @@ class TestCommandLine(unittest.TestCase):
             self.assertEqual(result.stdout, "")
             self.assertIn("Line 3:", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
+
+    @unittest.skipIf(
+        importlib.util.find_spec("matplotlib") is not None,
+        "Only applies when optional Matplotlib dependency is absent.",
+    )
+    def test_plot_without_matplotlib_has_install_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / "report.png"
+            result = self.run_cli("--plot", str(output_path))
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Charting requires Matplotlib", result.stderr)
+        self.assertIn("requirements-plot.txt", result.stderr)
+        self.assertFalse(output_path.exists())
+        self.assertEqual(result.stdout, "")
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_invalid_intervals(self):
         for value in ("0", "-1", "nan", "inf", "-inf"):

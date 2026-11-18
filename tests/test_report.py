@@ -33,6 +33,20 @@ class TestReport(unittest.TestCase):
             "healthy_readings": 1,
             "timing_gaps": 1,
         })
+        self.assertEqual(report["readings"], [
+            {
+                "timestamp": "2026-10-22T10:00:00",
+                "temperature_c": 25.0,
+                "voltage_v": 12.0,
+                "comms_ok": True,
+            },
+            {
+                "timestamp": "2026-10-22T10:00:03",
+                "temperature_c": 90.0,
+                "voltage_v": 12.0,
+                "comms_ok": True,
+            },
+        ])
         self.assertEqual(len(report["events"]), 2)
 
         gap, fault = report["events"]
