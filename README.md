@@ -5,6 +5,13 @@ detects sensor faults and timing gaps, and prints a summary.
 
 Built as an embedded-systems and software-testing portfolio project.
 
+## Example Chart
+
+![Temperature and voltage readings with fault thresholds](docs/images/sample-telemetry.png)
+
+Sample telemetry showing an overtemperature reading at two seconds,
+undervoltage at three seconds, and overvoltage at five seconds.
+
 ## Features
 
 - Detects temperatures above 85 °C
