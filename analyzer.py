@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import json
 import math
 from datetime import datetime
 from pathlib import Path
@@ -139,14 +140,18 @@ def has_timestamp_gap(
     return elapsed > expected_interval
 
 
-def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
+def collect_report(
+    file_path: Path,
+    expected_interval: float = 1.0,
+) -> dict:
+    """Validate the complete log and return a report without printing."""
     validate_interval(expected_interval)
 
     total_readings = 0
     faulty_readings = 0
     previous_timestamp: datetime | None = None
     timing_gaps = 0
-    messages: list[str] = []
+    events: list[dict] = []
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
@@ -175,10 +180,15 @@ def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
 
             if gap_detected:
                 timing_gaps += 1
-                messages.append(
-                    f"Timing gap: {previous_timestamp.isoformat()}"
-                    f" -> {timestamp.isoformat()}"
-                )
+                events.append({
+                    "type": "timing_gap",
+                    "line": reader.line_num,
+                    "previous_timestamp": previous_timestamp.isoformat(),
+                    "timestamp": timestamp.isoformat(),
+                    "elapsed_seconds": (
+                        timestamp - previous_timestamp
+                    ).total_seconds(),
+                })
 
             previous_timestamp = timestamp
             total_readings += 1
@@ -187,16 +197,51 @@ def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
 
             if faults:
                 faulty_readings += 1
-                messages.append(f"{row['timestamp']}: {', '.join(faults)}")
+                events.append({
+                    "type": "sensor_fault",
+                    "line": reader.line_num,
+                    "timestamp": row["timestamp"],
+                    "faults": faults,
+                })
 
-    for message in messages:
-        print(message)
+    return {
+        "source": str(file_path),
+        "expected_interval_seconds": expected_interval,
+        "summary": {
+            "total_readings": total_readings,
+            "faulty_readings": faulty_readings,
+            "healthy_readings": total_readings - faulty_readings,
+            "timing_gaps": timing_gaps,
+        },
+        "events": events,
+    }
 
+
+def analyze_log(
+    file_path: Path,
+    expected_interval: float = 1.0,
+) -> None:
+    """Print a report only after the complete log validates."""
+    print_report(collect_report(file_path, expected_interval))
+
+
+def print_report(report: dict) -> None:
+    """Display a structured report in the terminal."""
+    for event in report["events"]:
+        if event["type"] == "timing_gap":
+            print(
+                f"Timing gap: {event['previous_timestamp']}"
+                f" -> {event['timestamp']}"
+            )
+        elif event["type"] == "sensor_fault":
+            print(f"{event['timestamp']}: {', '.join(event['faults'])}")
+
+    summary = report["summary"]
     print("\nTelemetry Summary")
-    print(f"Total readings: {total_readings}")
-    print(f"Readings with faults: {faulty_readings}")
-    print(f"Readings without faults: {total_readings - faulty_readings}")
-    print(f"Timing gaps: {timing_gaps}")
+    print(f"Total readings: {summary['total_readings']}")
+    print(f"Readings with faults: {summary['faulty_readings']}")
+    print(f"Readings without faults: {summary['healthy_readings']}")
+    print(f"Timing gaps: {summary['timing_gaps']}")
 
 
 if __name__ == "__main__":
@@ -217,11 +262,30 @@ if __name__ == "__main__":
         metavar="SECONDS",
         help="Expected time between readings in seconds (default: 1.0).",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        metavar="FILE",
+        help="Save a JSON report to a new file.",
+    )
     args = parser.parse_args()
 
     try:
-        analyze_log(args.log_file, args.expected_interval)
+        report = collect_report(args.log_file, args.expected_interval)
     except OSError as error:
         parser.exit(status=1, message=f"Cannot read log file: {error}\n")
     except ValueError as error:
         parser.exit(status=1, message=f"Invalid telemetry data: {error}\n")
+    if args.output is not None:
+        try:
+            serialized = json.dumps(report, indent=2, allow_nan=False)
+            with args.output.open("x", encoding="utf-8") as file:
+                file.write(serialized + "\n")
+        except OSError as error:
+            parser.exit(
+                status=1,
+                message=f"Cannot write report: {error}\n",
+            )
+    print_report(report)
+    if args.output is not None:
+        print(f"\nJSON report saved to: {args.output}")

@@ -15,6 +15,7 @@ Built as an embedded-systems and software-testing portfolio project.
 - Validates required columns, row completeness, numeric values,
   communications values, and timestamps
 - Includes line numbers in row-validation errors
+- Exports structured JSON reports
 - Uses only the Python standard library
 
 Timing gaps are reported separately from sensor faults.
@@ -66,6 +67,29 @@ python3 analyzer.py data/sample_telemetry.csv --expected-interval 2
 The interval must be a positive, finite number. An interval exactly at
 the configured threshold does not count as a gap.
 
+### Export a JSON Report
+
+Create the output folder:
+
+```bash
+mkdir -p reports
+```
+
+Export an analysis:
+
+```bash
+python3 analyzer.py --expected-interval 2 --output reports/report.json
+```
+
+The report includes the source path, expected interval, summary counts,
+sensor faults, and timing gaps.
+
+The destination folder must already exist. Existing files are not
+overwritten; choose a new filename for each export. Invalid logs produce
+no analysis output and no new report.
+
+Generated files in `reports/` are excluded from Git.
+
 Display help:
 
 ```bash
@@ -101,5 +125,4 @@ and pull request using Python 3.14.
 
 ## Planned Improvements
 
-- Exportable analysis reports
 - Sensor-data charts
