@@ -3,8 +3,8 @@
 import argparse
 import csv
 import math
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 
 def parse_comms(value: str) -> bool:
@@ -42,6 +42,7 @@ def detect_faults(
 
     return faults
 
+
 def parse_number(value: str, field_name: str) -> float:
     """Convert a sensor value into a finite number."""
     try:
@@ -57,6 +58,7 @@ def parse_number(value: str, field_name: str) -> float:
         )
 
     return number
+
 
 def validate_headers(headers: list[str] | None) -> None:
     """Check that the log contains all required columns."""
@@ -75,6 +77,7 @@ def validate_headers(headers: list[str] | None) -> None:
             f"Missing required columns: {', '.join(sorted(missing))}."
         )
 
+
 def validate_row(row: dict, line_number: int) -> None:
     """Reject extra values and missing or blank required values."""
     if None in row:
@@ -87,6 +90,7 @@ def validate_row(row: dict, line_number: int) -> None:
             raise ValueError(
                 f"Line {line_number}: missing value for {field}."
             )
+
 
 def parse_timestamp(value: str) -> datetime:
     """Parse a date and time in ISO 8601 format."""
@@ -140,8 +144,9 @@ def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
 
     total_readings = 0
     faulty_readings = 0
-    previous_timestamp = None
+    previous_timestamp: datetime | None = None
     timing_gaps = 0
+    messages: list[str] = []
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
@@ -170,7 +175,7 @@ def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
 
             if gap_detected:
                 timing_gaps += 1
-                print(
+                messages.append(
                     f"Timing gap: {previous_timestamp.isoformat()}"
                     f" -> {timestamp.isoformat()}"
                 )
@@ -182,7 +187,10 @@ def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
 
             if faults:
                 faulty_readings += 1
-                print(f"{row['timestamp']}: {', '.join(faults)}")
+                messages.append(f"{row['timestamp']}: {', '.join(faults)}")
+
+    for message in messages:
+        print(message)
 
     print("\nTelemetry Summary")
     print(f"Total readings: {total_readings}")

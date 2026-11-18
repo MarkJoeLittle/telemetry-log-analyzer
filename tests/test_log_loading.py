@@ -52,6 +52,25 @@ class TestLogLoading(unittest.TestCase):
         self.assertIn("Readings with faults: 0", output)
         self.assertIn("Readings without faults: 4", output)
 
+    def test_invalid_later_row_does_not_print_partial_results(self):
+        contents = (
+            "timestamp,temperature_c,voltage_v,comms_ok\n"
+            "2026-10-22T10:00:00,90.0,12.0,true\n"
+            "2026-10-22T10:00:01,invalid,12.0,true\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "telemetry.csv"
+            log_path.write_text(contents, encoding="utf-8")
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                with self.assertRaisesRegex(
+                    ValueError, "Line 3: temperature_c must be numeric"
+                ):
+                    analyze_log(log_path)
+
+        self.assertEqual(output.getvalue(), "")
+
     def test_missing_column(self):
         with self.assertRaisesRegex(ValueError, "Missing required columns"):
             self.analyze_text(

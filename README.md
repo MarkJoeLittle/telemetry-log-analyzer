@@ -10,7 +10,7 @@ Built as an embedded-systems and software-testing portfolio project.
 - Detects temperatures above 85 °C
 - Detects voltages below 10.5 V or above 13.5 V
 - Flags communications failures
-- Detects timestamp gaps exceeding a configurable interval (default: one second).
+- Detects timestamp gaps exceeding a configurable interval (default: one second)
 - Rejects duplicate or decreasing timestamps
 - Validates required columns, row completeness, numeric values,
   communications values, and timestamps
@@ -89,7 +89,7 @@ python -m unittest discover -s tests -v
 ```
 
 Tests cover fault thresholds, input validation, timestamp ordering,
-timing gaps, and file-reading integration.
+timing gaps, file-reading integration, and command-line behavior.
 
 GitHub Actions runs the automated tests and sample analysis on every push
 and pull request using Python 3.14.
@@ -97,7 +97,6 @@ and pull request using Python 3.14.
 ## Limitations
 
 - Analysis stops at the first invalid record.
-- Earlier warnings may already be printed when an invalid record is found.
 - This is an offline analysis tool, not a real-time monitoring system.
 
 ## Planned Improvements

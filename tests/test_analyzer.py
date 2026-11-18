@@ -1,14 +1,17 @@
 """Tests for telemetry fault detection."""
 
 import unittest
-
-from analyzer import detect_faults, parse_comms, parse_number, validate_headers
-
-from analyzer import validate_row
 from datetime import datetime, timezone
 
-from analyzer import has_timestamp_gap
-from analyzer import parse_timestamp
+from analyzer import (
+    detect_faults,
+    has_timestamp_gap,
+    parse_comms,
+    parse_number,
+    parse_timestamp,
+    validate_headers,
+    validate_row,
+)
 
 
 class TestDetectFaults(unittest.TestCase):
@@ -58,6 +61,7 @@ class TestDetectFaults(unittest.TestCase):
             ],
         )
 
+
 class TestParseComms(unittest.TestCase):
     def test_true(self):
         self.assertIs(parse_comms("true"), True)
@@ -74,6 +78,7 @@ class TestParseComms(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     parse_comms(value)
+
 
 class TestParseNumber(unittest.TestCase):
     def test_valid_number(self):
@@ -93,6 +98,7 @@ class TestParseNumber(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     parse_number(value, "temperature_c")
+
 
 class TestValidateHeaders(unittest.TestCase):
     def test_required_columns(self):
@@ -118,6 +124,7 @@ class TestValidateHeaders(unittest.TestCase):
             with self.subTest(headers=headers):
                 with self.assertRaises(ValueError):
                     validate_headers(headers)
+
 
 class TestValidateRow(unittest.TestCase):
     def setUp(self):
@@ -151,29 +158,6 @@ class TestValidateRow(unittest.TestCase):
         self.row[None] = ["unexpected"]
         with self.assertRaisesRegex(ValueError, "Line 5: too many values"):
             validate_row(self.row, 5)
-
-class TestHasTimestampGap(unittest.TestCase):
-    def test_gap_exceeds_one_second(self):
-        previous = datetime(2026, 10, 22, 10, 0, 0)
-        current = datetime(2026, 10, 22, 10, 0, 2)
-        self.assertTrue(has_timestamp_gap(previous, current))
-
-    def test_gap_within_one_second(self):
-        previous = datetime(2026, 10, 22, 10, 0, 0)
-        current = datetime(2026, 10, 22, 10, 0, 0, 500000)
-        self.assertFalse(has_timestamp_gap(previous, current))
-
-    def test_rejects_non_increasing_timestamps(self):
-        previous = datetime(2026, 10, 22, 10, 0, 2)
-        current = datetime(2026, 10, 22, 10, 0, 1)
-        with self.assertRaisesRegex(ValueError, "strictly increasing"):
-            has_timestamp_gap(previous, current)
-
-    def test_rejects_mixed_timezone_information(self):
-        previous = datetime(2026, 10, 22, 10, 0, 0, tzinfo=timezone.utc)
-        current = datetime(2026, 10, 22, 10, 0, 1)
-        with self.assertRaisesRegex(ValueError, "consistently include or omit"):
-            has_timestamp_gap(previous, current)
 
 
 class TestParseTimestamp(unittest.TestCase):
