@@ -105,8 +105,20 @@ def parse_timestamp(value: str) -> datetime:
         ) from None
 
 
-def has_timestamp_gap(previous: datetime, current: datetime) -> bool:
-    """Detect gaps exceeding one second; reject inconsistent timestamps."""
+def validate_interval(seconds: float) -> None:
+    """Require a positive, finite reading interval."""
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("Expected interval must be a positive, finite number.")
+
+
+def has_timestamp_gap(
+    previous: datetime,
+    current: datetime,
+    expected_interval: float = 1.0,
+) -> bool:
+    """Detect gaps exceeding the expected reading interval."""
+    validate_interval(expected_interval)
+
     previous_has_zone = previous.utcoffset() is not None
     current_has_zone = current.utcoffset() is not None
 
@@ -120,10 +132,12 @@ def has_timestamp_gap(previous: datetime, current: datetime) -> bool:
     if elapsed <= 0:
         raise ValueError("Timestamps must be strictly increasing.")
 
-    return elapsed > 1.0
+    return elapsed > expected_interval
 
 
-def analyze_log(file_path: Path) -> None:
+def analyze_log(file_path: Path, expected_interval: float = 1.0) -> None:
+    validate_interval(expected_interval)
+
     total_readings = 0
     faulty_readings = 0
     previous_timestamp = None
@@ -145,7 +159,9 @@ def analyze_log(file_path: Path) -> None:
                 comms_ok = parse_comms(row["comms_ok"])
                 gap_detected = (
                     previous_timestamp is not None
-                    and has_timestamp_gap(previous_timestamp, timestamp)
+                    and has_timestamp_gap(
+                        previous_timestamp, timestamp, expected_interval
+                    )
                 )
             except ValueError as error:
                 raise ValueError(
@@ -186,10 +202,17 @@ if __name__ == "__main__":
         default=Path(__file__).resolve().parent / "data" / "sample_telemetry.csv",
         help="Path to a telemetry CSV file; defaults to the sample log.",
     )
+    parser.add_argument(
+        "--expected-interval",
+        type=float,
+        default=1.0,
+        metavar="SECONDS",
+        help="Expected time between readings in seconds (default: 1.0).",
+    )
     args = parser.parse_args()
 
     try:
-        analyze_log(args.log_file)
+        analyze_log(args.log_file, args.expected_interval)
     except OSError as error:
         parser.exit(status=1, message=f"Cannot read log file: {error}\n")
     except ValueError as error:

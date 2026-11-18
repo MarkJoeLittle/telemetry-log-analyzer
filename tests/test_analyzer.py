@@ -224,6 +224,22 @@ class TestTimestampGaps(unittest.TestCase):
         current = datetime(2026, 10, 22, 10, 0, 2)
         self.assertTrue(has_timestamp_gap(self.previous, current))
 
+    def test_exact_custom_interval_has_no_gap(self):
+        current = datetime(2026, 10, 22, 10, 0, 2)
+        self.assertFalse(
+            has_timestamp_gap(
+                self.previous, current, expected_interval=2.0
+            )
+        )
+
+    def test_above_custom_interval_has_gap(self):
+        current = datetime(2026, 10, 22, 10, 0, 2, 1)
+        self.assertTrue(
+            has_timestamp_gap(
+                self.previous, current, expected_interval=2.0
+            )
+        )
+
     def test_duplicate_or_reversed_time(self):
         for current in (
             self.previous,

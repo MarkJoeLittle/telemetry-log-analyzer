@@ -10,7 +10,7 @@ Built as an embedded-systems and software-testing portfolio project.
 - Detects temperatures above 85 °C
 - Detects voltages below 10.5 V or above 13.5 V
 - Flags communications failures
-- Detects timestamp gaps exceeding one second
+- Detects timestamp gaps exceeding a configurable interval (default: one second).
 - Rejects duplicate or decreasing timestamps
 - Validates required columns, row completeness, numeric values,
   communications values, and timestamps
@@ -41,7 +41,7 @@ timestamp,temperature_c,voltage_v,comms_ok
 - Temperature and voltage must be finite numbers.
 - Communications values must be `true` or `false`, ignoring
   capitalization and surrounding spaces.
-- Timing analysis assumes one reading per second.
+- Use --expected-interval SECONDS to set the expected time between readings.
 
 ## Run
 
@@ -56,6 +56,15 @@ Analyze a different log:
 ```bash
 python analyzer.py path/to/log.csv
 ```
+
+Analyze readings expected every two seconds:
+
+```bash
+python3 analyzer.py data/sample_telemetry.csv --expected-interval 2
+```
+
+The interval must be a positive, finite number. An interval exactly at
+the configured threshold does not count as a gap.
 
 Display help:
 
@@ -84,14 +93,12 @@ timing gaps, and file-reading integration.
 
 ## Limitations
 
-- The expected reading interval is fixed at one second.
 - Analysis stops at the first invalid record.
 - Earlier warnings may already be printed when an invalid record is found.
 - This is an offline analysis tool, not a real-time monitoring system.
 
 ## Planned Improvements
 
-- Configurable expected reading interval
 - Exportable analysis reports
 - Sensor-data charts
 - Automated testing through GitHub Actions
