@@ -63,7 +63,7 @@ def parse_number(value: str, field_name: str) -> float:
 
 def validate_headers(headers: list[str] | None) -> None:
     """Check that the log contains all required columns."""
-    required = {"timestamp", "temperature_c", "voltage_v", "comms_ok"}
+    required = ["timestamp", "temperature_c", "voltage_v", "comms_ok"]
 
     if not headers:
         raise ValueError("The log is empty or has no header.")
@@ -71,11 +71,18 @@ def validate_headers(headers: list[str] | None) -> None:
     if len(headers) != len(set(headers)):
         raise ValueError("The log contains duplicate column names.")
 
-    missing = required - set(headers)
+    missing = set(required) - set(headers)
 
     if missing:
         raise ValueError(
             f"Missing required columns: {', '.join(sorted(missing))}."
+        )
+
+    if headers != required:
+        raise ValueError(
+            "Telemetry columns must be exactly "
+            "timestamp,temperature_c,voltage_v,comms_ok "
+            "in that order."
         )
 
 
@@ -151,6 +158,7 @@ def collect_report(
     faulty_readings = 0
     previous_timestamp: datetime | None = None
     timing_gaps = 0
+    interval_seconds: list[float] = []
     events: list[dict] = []
     readings: list[dict] = []
 
@@ -191,6 +199,11 @@ def collect_report(
                     ).total_seconds(),
                 })
 
+            if previous_timestamp is not None:
+                interval_seconds.append(
+                    (timestamp - previous_timestamp).total_seconds()
+                )
+
             readings.append({
                 "timestamp": timestamp.isoformat(),
                 "temperature_c": temperature,
@@ -213,7 +226,13 @@ def collect_report(
 
     return {
         "source": str(file_path),
+        "contract_version": 1,
         "expected_interval_seconds": expected_interval,
+        "sensor_thresholds": {
+            "temperature_c_over": 85.0,
+            "voltage_v_below": 10.5,
+            "voltage_v_above": 13.5,
+        },
         "summary": {
             "total_readings": total_readings,
             "faulty_readings": faulty_readings,
@@ -222,6 +241,19 @@ def collect_report(
         },
         "events": events,
         "readings": readings,
+        "timing": {
+            "mean_interval_seconds": (
+                sum(interval_seconds) / len(interval_seconds)
+                if interval_seconds
+                else None
+            ),
+            "minimum_interval_seconds": (
+                min(interval_seconds) if interval_seconds else None
+            ),
+            "maximum_interval_seconds": (
+                max(interval_seconds) if interval_seconds else None
+            ),
+        },
     }
 
 
@@ -250,6 +282,14 @@ def print_report(report: dict) -> None:
     print(f"Readings with faults: {summary['faulty_readings']}")
     print(f"Readings without faults: {summary['healthy_readings']}")
     print(f"Timing gaps: {summary['timing_gaps']}")
+    timing = report["timing"]
+    if timing["minimum_interval_seconds"] is not None:
+        print(
+            "Inter-reading interval (seconds): "
+            f"mean={timing['mean_interval_seconds']:.3f}, "
+            f"min={timing['minimum_interval_seconds']:.3f}, "
+            f"max={timing['maximum_interval_seconds']:.3f}"
+        )
 
 
 if __name__ == "__main__":

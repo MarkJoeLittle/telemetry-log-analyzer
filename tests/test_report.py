@@ -26,7 +26,13 @@ class TestReport(unittest.TestCase):
                 report = collect_report(log_path)
 
         self.assertEqual(output.getvalue(), "")
+        self.assertEqual(report["contract_version"], 1)
         self.assertEqual(report["expected_interval_seconds"], 1.0)
+        self.assertEqual(report["sensor_thresholds"], {
+            "temperature_c_over": 85.0,
+            "voltage_v_below": 10.5,
+            "voltage_v_above": 13.5,
+        })
         self.assertEqual(report["summary"], {
             "total_readings": 2,
             "faulty_readings": 1,
@@ -55,6 +61,8 @@ class TestReport(unittest.TestCase):
         self.assertEqual(gap["elapsed_seconds"], 3.0)
         self.assertEqual(fault["type"], "sensor_fault")
         self.assertEqual(fault["faults"], ["Overtemperature"])
+        self.assertEqual(report["timing"]["minimum_interval_seconds"], 3.0)
+        self.assertEqual(report["timing"]["maximum_interval_seconds"], 3.0)
 
 
 if __name__ == "__main__":

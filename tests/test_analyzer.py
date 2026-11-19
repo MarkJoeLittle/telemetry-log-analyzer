@@ -106,10 +106,17 @@ class TestValidateHeaders(unittest.TestCase):
             ["timestamp", "temperature_c", "voltage_v", "comms_ok"]
         )
 
-    def test_extra_column_allowed(self):
-        validate_headers(
-            ["timestamp", "temperature_c", "voltage_v", "comms_ok", "device_id"]
-        )
+    def test_extra_column_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must be exactly"):
+            validate_headers(
+                ["timestamp", "temperature_c", "voltage_v", "comms_ok", "device_id"]
+            )
+
+    def test_column_order_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must be exactly"):
+            validate_headers(
+                ["timestamp", "voltage_v", "temperature_c", "comms_ok"]
+            )
 
     def test_missing_column(self):
         with self.assertRaisesRegex(ValueError, "Missing required columns: comms_ok"):

@@ -73,7 +73,8 @@ Chart](#generate-a-chart).
 
 ## Input Format
 
-Required column names are case-sensitive. Extra named columns are allowed.
+Required column names are case-sensitive. Contract version 1 requires the
+four columns in the exact order shown below.
 
 ```csv
 timestamp,temperature_c,voltage_v,comms_ok
@@ -87,6 +88,9 @@ timestamp,temperature_c,voltage_v,comms_ok
 - Communications values must be `true` or `false`, ignoring
   capitalization and surrounding spaces.
 - Use --expected-interval SECONDS to set the expected time between readings.
+
+The versioned producer/consumer specification is documented in
+[Telemetry CSV Contract](docs/telemetry_contract.md).
 
 ## Run
 
@@ -141,9 +145,31 @@ sensor faults, and timing gaps.
 
 The destination folder must already exist. Existing files are not
 overwritten; choose a new filename for each export. Invalid logs produce
-no analysis output and no new report.
+no analysis output and no report.
 
-Generated files in `reports/` are excluded from Git.
+### Health Monitor Integration
+
+With `rtos-system-health-monitor` checked out beside this repository,
+build the C++ executable and run the reproducible bridge:
+
+```bash
+python3 scripts/run_health_monitor_demo.py
+```
+
+The script finds the existing WSL, Linux, or Windows executable build,
+creates timestamped CSV, JSON report, and manifest files under the
+health-monitor project's `logs/` directory, and invokes the analyzer.
+
+Use `--monitor-root` for a non-sibling checkout or `--monitor` for an
+explicit executable:
+
+```bash
+python3 scripts/run_health_monitor_demo.py \
+  --monitor-root /path/to/rtos-system-health-monitor \
+  --monitor /path/to/rtos_health_monitor
+```
+
+The 1.05-second threshold is configurable with `--expected-interval`.
 
 ### Generate a Chart
 
