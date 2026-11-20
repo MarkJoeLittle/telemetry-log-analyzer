@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from analyzer import collect_report
+from scripts.run_health_monitor_demo import find_monitor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -17,28 +18,15 @@ MONITOR_ROOT = PROJECT_ROOT.parent / "rtos-system-health-monitor"
 class TestHealthMonitorIntegration(unittest.TestCase):
     def setUp(self):
         configured = os.environ.get("RTOS_HEALTH_MONITOR_EXECUTABLE")
-        candidates = (
-            [Path(configured).resolve()]
-            if configured
-            else []
-        ) + [
-            MONITOR_ROOT / "build" / "Debug" / "rtos_health_monitor.exe",
-            MONITOR_ROOT / "build" / "rtos_health_monitor.exe",
-            MONITOR_ROOT / "build" / "rtos_health_monitor",
-            MONITOR_ROOT / "build-wsl" / "rtos_health_monitor",
-            MONITOR_ROOT / "build-wsl" / "rtos_health_monitor.exe",
-        ]
-
-        self.monitor = next(
-            (candidate for candidate in candidates if candidate.is_file()),
-            None,
-        )
-        if self.monitor is None:
+        try:
+            self.monitor = find_monitor(MONITOR_ROOT, configured)
+        except RuntimeError:
+            if configured:
+                raise
             self.skipTest(
                 "Build rtos_health_monitor or set "
                 "RTOS_HEALTH_MONITOR_EXECUTABLE."
             )
-        self.monitor = self.monitor.resolve()
 
     def test_generated_csv_is_valid_for_analyzer(self):
         self.assertTrue(self.monitor.is_absolute())

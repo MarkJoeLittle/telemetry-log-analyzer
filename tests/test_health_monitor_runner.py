@@ -19,7 +19,87 @@ class TestHealthMonitorRunner(unittest.TestCase):
             executable.parent.mkdir()
             executable.touch()
 
-            self.assertEqual(runner.find_monitor(project_root, None), executable)
+            with patch.object(runner.sys, "platform", "linux"):
+                self.assertEqual(
+                    runner.find_monitor(project_root, None), executable
+                )
+
+    def test_wsl_prefers_native_build_when_windows_builds_exist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native = root / "build-wsl" / "rtos_health_monitor"
+            for executable in (
+                native,
+                root / "build" / "rtos_health_monitor",
+                root / "build" / "Debug" / "rtos_health_monitor.exe",
+                root / "build" / "rtos_health_monitor.exe",
+            ):
+                executable.parent.mkdir(parents=True, exist_ok=True)
+                executable.touch()
+
+            with patch.object(runner.sys, "platform", "linux"):
+                self.assertEqual(runner.find_monitor(root, None), native)
+
+    def test_linux_does_not_fall_back_to_windows_executable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "build" / "Debug" / "rtos_health_monitor.exe"
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+
+            with patch.object(runner.sys, "platform", "linux"):
+                with self.assertRaisesRegex(RuntimeError, "native.*build"):
+                    runner.find_monitor(root, None)
+
+    def test_windows_finds_native_build_layouts(self):
+        for build_directory in ("build/Debug", "build/Release", "build", "build-wsl"):
+            with self.subTest(build_directory=build_directory):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    native = root / build_directory / "rtos_health_monitor.exe"
+                    native.parent.mkdir(parents=True)
+                    native.touch()
+                    linux_build = root / "build-wsl" / "rtos_health_monitor"
+                    linux_build.parent.mkdir(parents=True, exist_ok=True)
+                    linux_build.touch()
+
+                    with patch.object(runner.sys, "platform", "win32"):
+                        self.assertEqual(runner.find_monitor(root, None), native)
+
+    def test_windows_does_not_select_linux_only_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "build-wsl" / "rtos_health_monitor"
+            executable.parent.mkdir()
+            executable.touch()
+
+            with patch.object(runner.sys, "platform", "win32"):
+                with self.assertRaisesRegex(RuntimeError, "native.*build"):
+                    runner.find_monitor(root, None)
+
+    def test_explicit_monitor_overrides_platform_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native = root / "build-wsl" / "rtos_health_monitor"
+            native.parent.mkdir()
+            native.touch()
+            explicit = root / "selected.exe"
+            explicit.touch()
+
+            with patch.object(runner.sys, "platform", "linux"):
+                self.assertEqual(
+                    runner.find_monitor(root, str(explicit)), explicit
+                )
+
+    def test_missing_explicit_monitor_does_not_select_another_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native = root / "build-wsl" / "rtos_health_monitor"
+            native.parent.mkdir()
+            native.touch()
+
+            with self.assertRaisesRegex(RuntimeError, "Configured monitor"):
+                runner.find_monitor(root, str(root / "missing"))
 
     def test_configured_relative_executable_is_resolved(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -53,6 +133,8 @@ class TestHealthMonitorRunner(unittest.TestCase):
                         "run_health_monitor_demo.py",
                         "--monitor-root",
                         str(monitor_root),
+                        "--monitor",
+                        str(executable),
                         "--duration",
                         "3",
                         "--telemetry-interval-ms",
