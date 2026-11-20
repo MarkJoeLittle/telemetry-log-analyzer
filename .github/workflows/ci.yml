@@ -44,7 +44,6 @@ jobs:
       - name: Check out telemetry analyzer
         uses: actions/checkout@v7
         with:
-          ref: c097b2cb25a47b15557120bc9b9023b4718cac4b
           persist-credentials: false
           path: telemetry-log-analyzer
 
