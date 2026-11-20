@@ -44,6 +44,7 @@ jobs:
       - name: Check out telemetry analyzer
         uses: actions/checkout@v7
         with:
+          ref: c097b2cb25a47b15557120bc9b9023b4718cac4b
           persist-credentials: false
           path: telemetry-log-analyzer
 
@@ -51,6 +52,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: MarkJoeLittle/rtos-system-health-monitor
+          ref: 2677f6094a9baf76e5cacabe4fa692660c3c82d5
           persist-credentials: false
           path: rtos-system-health-monitor
 
@@ -62,11 +64,11 @@ jobs:
       - name: Build health monitor
         working-directory: rtos-system-health-monitor
         run: |
-          cmake -S . -B build-wsl
-          cmake --build build-wsl
+          cmake -S . -B build
+          cmake --build build --target rtos_health_monitor
 
       - name: Run cross-repository test
         working-directory: telemetry-log-analyzer
         env:
-          RTOS_HEALTH_MONITOR_EXECUTABLE: ../rtos-system-health-monitor/build-wsl/rtos_health_monitor
+          RTOS_HEALTH_MONITOR_EXECUTABLE: ../rtos-system-health-monitor/build/rtos_health_monitor
         run: python -m unittest tests/test_health_monitor_integration.py -v
