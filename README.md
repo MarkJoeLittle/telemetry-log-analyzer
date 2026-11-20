@@ -158,12 +158,18 @@ build the C++ executable and run the reproducible bridge:
 python3 scripts/run_health_monitor_demo.py
 ```
 
-The script finds the existing WSL, Linux, or Windows executable build,
-creates timestamped CSV, JSON report, and manifest files under the
+The script discovers a native executable for the running platform. In WSL
+and Linux, it checks `build-wsl/rtos_health_monitor` before
+`build/rtos_health_monitor` and does not automatically select Windows `.exe`
+files. On Windows, it checks `.exe` builds under `build/Debug`,
+`build/Release`, `build`, and `build-wsl`.
+
+It creates timestamped CSV, JSON report, and manifest files under the
 health-monitor project's `logs/` directory, and invokes the analyzer.
 
 Use `--monitor-root` for a non-sibling checkout or `--monitor` for an
-explicit executable:
+explicit executable. An explicit path takes precedence over discovery;
+an invalid path reports an error instead of selecting another build:
 
 ```bash
 python3 scripts/run_health_monitor_demo.py \

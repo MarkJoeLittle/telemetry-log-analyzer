@@ -12,26 +12,35 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def find_monitor(project_root: Path, configured: str | None) -> Path:
-    candidates = []
+    """Find a native build, or use an explicitly selected executable."""
     if configured:
-        candidates.append(Path(configured).resolve())
+        executable = Path(configured).resolve()
+        if executable.is_file():
+            return executable
+        raise RuntimeError(f"Configured monitor does not exist: {executable}")
 
-    candidates.extend(
-        (
+    if sys.platform == "win32":
+        candidates = (
             project_root / "build" / "Debug" / "rtos_health_monitor.exe",
+            project_root / "build" / "Release" / "rtos_health_monitor.exe",
             project_root / "build" / "rtos_health_monitor.exe",
-            project_root / "build" / "rtos_health_monitor",
-            project_root / "build-wsl" / "rtos_health_monitor",
             project_root / "build-wsl" / "rtos_health_monitor.exe",
         )
-    )
+    else:
+        # WSL reports itself as Linux. Do not automatically launch a Windows
+        # build: it may be blocked or interpret generated paths differently.
+        candidates = (
+            project_root / "build-wsl" / "rtos_health_monitor",
+            project_root / "build" / "rtos_health_monitor",
+        )
 
     for candidate in candidates:
         if candidate.is_file():
-            return candidate
+            return candidate.resolve()
 
     raise RuntimeError(
-        "Could not find rtos_health_monitor; build it or pass --monitor."
+        "Could not find a native rtos_health_monitor build; "
+        "build it for this platform or pass --monitor."
     )
 
 
