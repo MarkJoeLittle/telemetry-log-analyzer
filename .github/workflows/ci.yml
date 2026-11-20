@@ -36,3 +36,38 @@ jobs:
 
       - name: Run sample analysis
         run: python analyzer.py data/sample_telemetry.csv
+
+  cross-repository-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out telemetry analyzer
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          path: telemetry-log-analyzer
+
+      - name: Check out health monitor
+        uses: actions/checkout@v7
+        with:
+          repository: MarkJoeLittle/rtos-system-health-monitor
+          ref: 2677f6094a9baf76e5cacabe4fa692660c3c82d5
+          persist-credentials: false
+          path: rtos-system-health-monitor
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Build health monitor
+        working-directory: rtos-system-health-monitor
+        run: |
+          cmake -S . -B build
+          cmake --build build --target rtos_health_monitor
+
+      - name: Run cross-repository test
+        working-directory: telemetry-log-analyzer
+        env:
+          RTOS_HEALTH_MONITOR_EXECUTABLE: ../rtos-system-health-monitor/build/rtos_health_monitor
+        run: python -m unittest tests/test_health_monitor_integration.py -v

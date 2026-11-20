@@ -27,6 +27,7 @@ class TestCommandLine(unittest.TestCase):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--expected-interval", result.stdout)
+        self.assertIn("--strict-contract", result.stdout)
         self.assertIn("--output", result.stdout)
         self.assertIn("--plot", result.stdout)
         self.assertIn("--plot", result.stdout)
@@ -60,6 +61,7 @@ class TestCommandLine(unittest.TestCase):
             report = json.loads(output_path.read_text(encoding="utf-8"))
 
         self.assertEqual(report["expected_interval_seconds"], 2.0)
+        self.assertIsNone(report["contract_version"])
         self.assertEqual(report["summary"], {
             "total_readings": 6,
             "faulty_readings": 4,
@@ -72,6 +74,27 @@ class TestCommandLine(unittest.TestCase):
             all(event["type"] == "sensor_fault" for event in report["events"])
         )
         self.assertIn("JSON report saved to:", result.stdout)
+
+    def test_strict_contract_json_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "producer.csv"
+            output_path = Path(directory) / "report.json"
+            log_path.write_text(
+                "timestamp,temperature_c,voltage_v,comms_ok\n"
+                "2026-10-22T10:00:00.000000Z,25.0,12.0,true\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cli(
+                str(log_path),
+                "--strict-contract",
+                "--output",
+                str(output_path),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["contract_version"], 1)
 
     def test_existing_report_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:

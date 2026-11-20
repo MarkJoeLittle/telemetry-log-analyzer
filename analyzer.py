@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -61,7 +62,10 @@ def parse_number(value: str, field_name: str) -> float:
     return number
 
 
-def validate_headers(headers: list[str] | None) -> None:
+def validate_headers(
+    headers: list[str] | None,
+    strict_contract: bool = False,
+) -> None:
     """Check that the log contains all required columns."""
     required = {"timestamp", "temperature_c", "voltage_v", "comms_ok"}
 
@@ -71,11 +75,23 @@ def validate_headers(headers: list[str] | None) -> None:
     if len(headers) != len(set(headers)):
         raise ValueError("The log contains duplicate column names.")
 
-    missing = required - set(headers)
+    missing = set(required) - set(headers)
 
     if missing:
         raise ValueError(
             f"Missing required columns: {', '.join(sorted(missing))}."
+        )
+
+    if strict_contract and headers != [
+        "timestamp",
+        "temperature_c",
+        "voltage_v",
+        "comms_ok",
+    ]:
+        raise ValueError(
+            "Contract version 1 requires exactly "
+            "timestamp,temperature_c,voltage_v,comms_ok "
+            "in that order."
         )
 
 
@@ -143,6 +159,7 @@ def has_timestamp_gap(
 def collect_report(
     file_path: Path,
     expected_interval: float = 1.0,
+    strict_contract: bool = False,
 ) -> dict:
     """Validate the complete log and return a report without printing."""
     validate_interval(expected_interval)
@@ -151,17 +168,32 @@ def collect_report(
     faulty_readings = 0
     previous_timestamp: datetime | None = None
     timing_gaps = 0
+    interval_seconds: list[float] = []
     events: list[dict] = []
     readings: list[dict] = []
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
-        validate_headers(reader.fieldnames)
+        validate_headers(reader.fieldnames, strict_contract)
 
         for row in reader:
             validate_row(row, reader.line_num)
 
             try:
+                if strict_contract:
+                    if not re.fullmatch(
+                        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z",
+                        row["timestamp"].strip(),
+                    ):
+                        raise ValueError(
+                            "Contract version 1 timestamps must be UTC "
+                            "ISO 8601 with six fractional digits and end in Z."
+                        )
+                    if row["comms_ok"] not in ("true", "false"):
+                        raise ValueError(
+                            "Contract version 1 comms_ok values must be "
+                            "lowercase true or false."
+                        )
                 timestamp = parse_timestamp(row["timestamp"])
                 temperature = parse_number(
                     row["temperature_c"], "temperature_c"
@@ -191,6 +223,11 @@ def collect_report(
                     ).total_seconds(),
                 })
 
+            if previous_timestamp is not None:
+                interval_seconds.append(
+                    (timestamp - previous_timestamp).total_seconds()
+                )
+
             readings.append({
                 "timestamp": timestamp.isoformat(),
                 "temperature_c": temperature,
@@ -213,7 +250,13 @@ def collect_report(
 
     return {
         "source": str(file_path),
+        "contract_version": 1 if strict_contract else None,
         "expected_interval_seconds": expected_interval,
+        "sensor_thresholds": {
+            "temperature_c_over": 85.0,
+            "voltage_v_below": 10.5,
+            "voltage_v_above": 13.5,
+        },
         "summary": {
             "total_readings": total_readings,
             "faulty_readings": faulty_readings,
@@ -222,6 +265,19 @@ def collect_report(
         },
         "events": events,
         "readings": readings,
+        "timing": {
+            "mean_interval_seconds": (
+                sum(interval_seconds) / len(interval_seconds)
+                if interval_seconds
+                else None
+            ),
+            "minimum_interval_seconds": (
+                min(interval_seconds) if interval_seconds else None
+            ),
+            "maximum_interval_seconds": (
+                max(interval_seconds) if interval_seconds else None
+            ),
+        },
     }
 
 
@@ -250,6 +306,14 @@ def print_report(report: dict) -> None:
     print(f"Readings with faults: {summary['faulty_readings']}")
     print(f"Readings without faults: {summary['healthy_readings']}")
     print(f"Timing gaps: {summary['timing_gaps']}")
+    timing = report["timing"]
+    if timing["minimum_interval_seconds"] is not None:
+        print(
+            "Inter-reading interval (seconds): "
+            f"mean={timing['mean_interval_seconds']:.3f}, "
+            f"min={timing['minimum_interval_seconds']:.3f}, "
+            f"max={timing['maximum_interval_seconds']:.3f}"
+        )
 
 
 if __name__ == "__main__":
@@ -271,6 +335,11 @@ if __name__ == "__main__":
         help="Expected time between readings in seconds (default: 1.0).",
     )
     parser.add_argument(
+        "--strict-contract",
+        action="store_true",
+        help="Require exact version 1 telemetry producer output.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         metavar="FILE",
@@ -285,7 +354,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        report = collect_report(args.log_file, args.expected_interval)
+        report = collect_report(
+            args.log_file,
+            args.expected_interval,
+            strict_contract=args.strict_contract,
+        )
     except OSError as error:
         parser.exit(status=1, message=f"Cannot read log file: {error}\n")
     except ValueError as error:

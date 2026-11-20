@@ -32,6 +32,14 @@ class TestLogLoading(unittest.TestCase):
         self.assertIn("Readings with faults: 1", output)
         self.assertIn("Readings without faults: 1", output)
 
+    def test_reordered_and_additional_columns_remain_supported(self):
+        output = self.analyze_text(
+            "voltage_v,comms_ok,timestamp,device_id,temperature_c\n"
+            "12.0,TRUE,2026-10-22T10:00:00,sensor-1,25.0\n"
+        )
+        self.assertIn("Total readings: 1", output)
+        self.assertIn("Readings with faults: 0", output)
+
     def test_timing_gap_warning_and_summary(self):
         output = self.analyze_text(
             "timestamp,temperature_c,voltage_v,comms_ok\n"
