@@ -18,12 +18,13 @@ class TestHealthMonitorIntegration(unittest.TestCase):
     def setUp(self):
         configured = os.environ.get("RTOS_HEALTH_MONITOR_EXECUTABLE")
         candidates = (
-            [Path(configured)]
+            [Path(configured).resolve()]
             if configured
             else []
         ) + [
             MONITOR_ROOT / "build" / "Debug" / "rtos_health_monitor.exe",
             MONITOR_ROOT / "build" / "rtos_health_monitor.exe",
+            MONITOR_ROOT / "build" / "rtos_health_monitor",
             MONITOR_ROOT / "build-wsl" / "rtos_health_monitor",
             MONITOR_ROOT / "build-wsl" / "rtos_health_monitor.exe",
         ]
@@ -37,12 +38,20 @@ class TestHealthMonitorIntegration(unittest.TestCase):
                 "Build rtos_health_monitor or set "
                 "RTOS_HEALTH_MONITOR_EXECUTABLE."
             )
+        self.monitor = self.monitor.resolve()
 
     def test_generated_csv_is_valid_for_analyzer(self):
+        self.assertTrue(self.monitor.is_absolute())
         with tempfile.TemporaryDirectory() as directory:
             telemetry = Path(directory) / "session.csv"
             result = subprocess.run(
-                [str(self.monitor), "--telemetry", str(telemetry)],
+                [
+                    str(self.monitor),
+                    "--telemetry",
+                    str(telemetry),
+                    "--duration",
+                    "3",
+                ],
                 cwd=directory,
                 capture_output=True,
                 text=True,
@@ -68,6 +77,7 @@ class TestHealthMonitorIntegration(unittest.TestCase):
             report = collect_report(
                 telemetry,
                 expected_interval=1.05,
+                strict_contract=True,
             )
 
         self.assertEqual(report["contract_version"], 1)

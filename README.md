@@ -73,8 +73,10 @@ Chart](#generate-a-chart).
 
 ## Input Format
 
-Required column names are case-sensitive. Contract version 1 requires the
-four columns in the exact order shown below.
+Required column names are case-sensitive. By default, the analyzer accepts
+additional named columns and any column order, while requiring all four
+analysis fields. Use `--strict-contract` to validate producer output against
+version 1 of the telemetry contract.
 
 ```csv
 timestamp,temperature_c,voltage_v,comms_ok
@@ -170,6 +172,9 @@ python3 scripts/run_health_monitor_demo.py \
 ```
 
 The 1.05-second threshold is configurable with `--expected-interval`.
+Capture duration and sampling interval can be set with `--duration` and
+`--telemetry-interval-ms`. The generated manifest records start and completion
+times, capture settings, and repository revisions.
 
 ### Generate a Chart
 

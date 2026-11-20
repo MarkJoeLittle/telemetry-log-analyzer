@@ -106,16 +106,34 @@ class TestValidateHeaders(unittest.TestCase):
             ["timestamp", "temperature_c", "voltage_v", "comms_ok"]
         )
 
-    def test_extra_column_rejected(self):
-        with self.assertRaisesRegex(ValueError, "must be exactly"):
+    def test_extra_column_allowed_by_default(self):
+        validate_headers(
+            ["timestamp", "temperature_c", "voltage_v", "comms_ok", "device_id"]
+        )
+
+    def test_extra_column_rejected_in_strict_mode(self):
+        with self.assertRaisesRegex(ValueError, "Contract version 1"):
             validate_headers(
-                ["timestamp", "temperature_c", "voltage_v", "comms_ok", "device_id"]
+                [
+                    "timestamp",
+                    "temperature_c",
+                    "voltage_v",
+                    "comms_ok",
+                    "device_id",
+                ],
+                strict_contract=True,
             )
 
-    def test_column_order_rejected(self):
-        with self.assertRaisesRegex(ValueError, "must be exactly"):
+    def test_reordered_columns_allowed_by_default(self):
+        validate_headers(
+            ["timestamp", "voltage_v", "temperature_c", "comms_ok"]
+        )
+
+    def test_reordered_columns_rejected_in_strict_mode(self):
+        with self.assertRaisesRegex(ValueError, "Contract version 1"):
             validate_headers(
-                ["timestamp", "voltage_v", "temperature_c", "comms_ok"]
+                ["timestamp", "voltage_v", "temperature_c", "comms_ok"],
+                strict_contract=True,
             )
 
     def test_missing_column(self):

@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -61,9 +62,12 @@ def parse_number(value: str, field_name: str) -> float:
     return number
 
 
-def validate_headers(headers: list[str] | None) -> None:
+def validate_headers(
+    headers: list[str] | None,
+    strict_contract: bool = False,
+) -> None:
     """Check that the log contains all required columns."""
-    required = ["timestamp", "temperature_c", "voltage_v", "comms_ok"]
+    required = {"timestamp", "temperature_c", "voltage_v", "comms_ok"}
 
     if not headers:
         raise ValueError("The log is empty or has no header.")
@@ -78,9 +82,14 @@ def validate_headers(headers: list[str] | None) -> None:
             f"Missing required columns: {', '.join(sorted(missing))}."
         )
 
-    if headers != required:
+    if strict_contract and headers != [
+        "timestamp",
+        "temperature_c",
+        "voltage_v",
+        "comms_ok",
+    ]:
         raise ValueError(
-            "Telemetry columns must be exactly "
+            "Contract version 1 requires exactly "
             "timestamp,temperature_c,voltage_v,comms_ok "
             "in that order."
         )
@@ -150,6 +159,7 @@ def has_timestamp_gap(
 def collect_report(
     file_path: Path,
     expected_interval: float = 1.0,
+    strict_contract: bool = False,
 ) -> dict:
     """Validate the complete log and return a report without printing."""
     validate_interval(expected_interval)
@@ -164,12 +174,26 @@ def collect_report(
 
     with file_path.open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
-        validate_headers(reader.fieldnames)
+        validate_headers(reader.fieldnames, strict_contract)
 
         for row in reader:
             validate_row(row, reader.line_num)
 
             try:
+                if strict_contract:
+                    if not re.fullmatch(
+                        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z",
+                        row["timestamp"].strip(),
+                    ):
+                        raise ValueError(
+                            "Contract version 1 timestamps must be UTC "
+                            "ISO 8601 with six fractional digits and end in Z."
+                        )
+                    if row["comms_ok"] not in ("true", "false"):
+                        raise ValueError(
+                            "Contract version 1 comms_ok values must be "
+                            "lowercase true or false."
+                        )
                 timestamp = parse_timestamp(row["timestamp"])
                 temperature = parse_number(
                     row["temperature_c"], "temperature_c"
@@ -226,7 +250,7 @@ def collect_report(
 
     return {
         "source": str(file_path),
-        "contract_version": 1,
+        "contract_version": 1 if strict_contract else None,
         "expected_interval_seconds": expected_interval,
         "sensor_thresholds": {
             "temperature_c_over": 85.0,
@@ -311,6 +335,11 @@ if __name__ == "__main__":
         help="Expected time between readings in seconds (default: 1.0).",
     )
     parser.add_argument(
+        "--strict-contract",
+        action="store_true",
+        help="Require exact version 1 telemetry producer output.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         metavar="FILE",
@@ -325,7 +354,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        report = collect_report(args.log_file, args.expected_interval)
+        report = collect_report(
+            args.log_file,
+            args.expected_interval,
+            strict_contract=args.strict_contract,
+        )
     except OSError as error:
         parser.exit(status=1, message=f"Cannot read log file: {error}\n")
     except ValueError as error:
